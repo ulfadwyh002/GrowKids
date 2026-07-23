@@ -58,8 +58,8 @@ st.markdown("""
 
 # =====================================
 # LOAD MODEL
-# Fitur: jenis_kelamin, umur_bulan, berat_lahir, tinggi_lahir,
-#        berat_badan, tinggi_badan, asi_eksklusif, z_score
+# Fitur model (6, TANPA z_score & tinggi_badan untuk hindari data leakage):
+# jenis_kelamin, umur_bulan, berat_lahir, tinggi_lahir, berat_badan, asi_eksklusif
 # =====================================
 
 MODEL_PATH  = os.path.join("model", "knn_stunting.pkl")
@@ -82,6 +82,7 @@ except Exception as e:
 
 # =====================================
 # WHO Z-SCORE REFERENCE TABLE
+# (Dipakai HANYA untuk info edukasi/tampilan, BUKAN untuk fitur model)
 # =====================================
 
 WHO_BOYS = {
@@ -229,21 +230,19 @@ if menu == "🔍 Prediksi":
         gender_enc = 1 if gender == "Laki-laki" else 0
         asi_enc    = 1 if asi == "Ya" else 0
 
-        # Hitung z_score otomatis
+        # Z-score dihitung HANYA untuk ditampilkan sebagai info edukasi,
+        # TIDAK dikirim ke model (mencegah data leakage)
         z_score = get_zscore(gender, age, height)
 
-        # 8 fitur sesuai urutan training:
-        # jenis_kelamin, umur_bulan, berat_lahir, tinggi_lahir,
-        # berat_badan, tinggi_badan, asi_eksklusif, z_score
+        # 6 fitur sesuai urutan training model (tanpa tinggi_badan & z_score):
+        # jenis_kelamin, umur_bulan, berat_lahir, tinggi_lahir, berat_badan, asi_eksklusif
         data = np.array([[
             gender_enc,
             age,
             birth_weight,
             birth_height,
             weight,
-            height,
-            asi_enc,
-            z_score
+            asi_enc
         ]])
 
         try:
@@ -285,7 +284,8 @@ if menu == "🔍 Prediksi":
         st.markdown(f"""
         <div class="result-box {css_class}">
         {emoji} <strong>{kategori}</strong><br>
-        Z-Score <strong>{z_score}</strong> — tinggi badan anak {keterangan_z}
+        Prediksi model berdasarkan riwayat kelahiran &amp; kondisi gizi saat ini.<br>
+        Sebagai info tambahan, Z-Score TB/U anak adalah <strong>{z_score}</strong> — tinggi badan anak {keterangan_z}
         </div>
         """, unsafe_allow_html=True)
 
@@ -332,13 +332,13 @@ elif menu == "📈 Riwayat":
     if len(st.session_state.history) == 0:
         st.info("Belum ada riwayat. Lakukan prediksi terlebih dahulu di menu **🔍 Prediksi**.")
     else:
-        df = pd.DataFrame(st.session_state.history)
-        df.index = [f"Cek #{i+1}" for i in range(len(df))]
+        df_hist = pd.DataFrame(st.session_state.history)
+        df_hist.index = [f"Cek #{i+1}" for i in range(len(df_hist))]
 
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df_hist, use_container_width=True)
 
         st.markdown("**Tren Risiko Stunting (%)**")
-        st.line_chart(df["Risiko (%)"])
+        st.line_chart(df_hist["Risiko (%)"])
 
         if st.button("🗑️ Hapus Semua Riwayat"):
             st.session_state.history = []
@@ -365,7 +365,8 @@ elif menu == "ℹ️ Tentang":
     |---|---|
     | Algoritma | K-Nearest Neighbors (KNN), K=5 |
     | Metrik Jarak | Euclidean Distance |
-    | Fitur Model | jenis_kelamin, umur_bulan, berat_lahir, tinggi_lahir, berat_badan, tinggi_badan, asi_eksklusif, z_score |
+    | Fitur Model | jenis_kelamin, umur_bulan, berat_lahir, tinggi_lahir, berat_badan, asi_eksklusif |
+    | Catatan | Tinggi badan & Z-Score TIDAK dipakai sebagai fitur model (mencegah data leakage), hanya ditampilkan sebagai info edukasi |
     | Dataset | Kaggle — harnelia/faktor-stunting (10.000 baris) |
     | Framework | Streamlit |
     | Library ML | scikit-learn, numpy, pandas, joblib |
@@ -376,10 +377,10 @@ elif menu == "ℹ️ Tentang":
 
     | Metrik | Nilai |
     |---|---|
-    | Accuracy | 59.74% |
-    | Recall (Stunting) | **86%** |
-    | Precision (Stunting) | 62% |
-    | F1-Score (Stunting) | 0.72 |
+    | Accuracy | 67% |
+    | Recall (Stunting) | **80%** |
+    | Precision (Stunting) | 70% |
+    | F1-Score (Stunting) | 0.75 |
 
     ---
 
@@ -395,4 +396,6 @@ elif menu == "ℹ️ Tentang":
 
     Hasil prediksi GrowKids **bukan diagnosis medis**.
     Selalu konsultasikan hasil ini ke tenaga kesehatan profesional.
+    Threshold kategori risiko (rendah/sedang/tinggi) ditentukan sebagai desain aplikasi
+    untuk memudahkan interpretasi, bukan cutoff klinis resmi.
     """)
